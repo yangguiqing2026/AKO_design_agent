@@ -9,6 +9,8 @@ import * as path from 'node:path';
 
 import dotenv from 'dotenv';
 import { load as loadYaml } from 'js-yaml';
+import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 import type { BudgetConfig, BudgetSnapshot } from './interfaces/cost.interface';
 import type { SandboxConfig } from './modules/validator/security-scanner';
@@ -477,7 +479,182 @@ export async function runBootstrap(options: BootstrapOptions = {}): Promise<Boot
   };
 }
 
-/** 直接执行入口：npm run bootstrap / node dist/bootstrap.js */
+/** ---- --serve 模式（Sprint 3 之后新增 HTTP API 层） ---- */
+
+/** 默认服务端口 */
+export const DEFAULT_SERVE_PORT = 3080;
+
+/** 默认监听 host（安全默认：仅回环；需对外暴露时显式 --host 0.0.0.0） */
+export const DEFAULT_SERVE_HOST = '127.0.0.1';
+
+/** CLI 解析结果 */
+export interface ServeCliOptions {
+  readonly serve: boolean;
+  readonly host: string;
+  readonly port: number;
+}
+
+/**
+ * 解析命令行参数（纯函数，便于测试）。
+ * - `--serve`：启用 API Server
+ * - `--host <addr>`：监听地址；`--host` 不带值等价 `0.0.0.0`（模板语义），缺省 127.0.0.1
+ * - port：优先取 env.PORT，否则 3080
+ */
+export function parseCliArgs(
+  argv: readonly string[] = process.argv.slice(2),
+  portEnv: string | undefined = process.env.PORT
+): ServeCliOptions {
+  const serve = argv.includes('--serve');
+  let host = DEFAULT_SERVE_HOST;
+  const hostFlagIndex = argv.indexOf('--host');
+  if (hostFlagIndex >= 0) {
+    const next = argv[hostFlagIndex + 1];
+    host =
+      next !== undefined && next.length > 0 && !next.startsWith('--') ? next : '0.0.0.0';
+  }
+  const parsedPort = portEnv === undefined ? Number.NaN : Number(portEnv);
+  const port = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : DEFAULT_SERVE_PORT;
+  return { serve, host, port };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** /design/chat 请求体（宽松校验后收敛） */
+export interface DesignChatBody {
+  readonly prompt: string;
+  readonly session_id?: string;
+  readonly human_decision?: 'approve' | 'reject';
+  readonly max_steps?: number;
+}
+
+function normalizeChatBody(value: unknown): DesignChatBody | null {
+  if (!isRecord(value) || typeof value.prompt !== 'string' || value.prompt.trim().length === 0) {
+    return null;
+  }
+  const humanDecision =
+    value.human_decision === 'approve' || value.human_decision === 'reject'
+      ? value.human_decision
+      : undefined;
+  return {
+    prompt: value.prompt.trim(),
+    ...(typeof value.session_id === 'string' && value.session_id.length > 0
+      ? { session_id: value.session_id }
+      : {}),
+    ...(humanDecision !== undefined ? { human_decision: humanDecision } : {}),
+    ...(typeof value.max_steps === 'number' && value.max_steps > 0
+      ? { max_steps: value.max_steps }
+      : {})
+  };
+}
+
+/** HTTP 层仅依赖 runDesignSession（便于注入 stub 做 inject 测试） */
+type OrchestratorLike = Pick<SessionOrchestrator, 'runDesignSession'>;
+
+export interface ApiServerDeps {
+  readonly orchestrator: OrchestratorLike;
+  readonly version: string;
+  readonly overall: PhaseStatus;
+}
+
+/** 构造 Fastify 实例（不监听；供 inject 测试与 startServe 复用） */
+export function buildApiServer(deps: ApiServerDeps): FastifyInstance {
+  const app = Fastify({ logger: false });
+
+  // 健康检查
+  app.get('/health', async () => ({
+    status: 'ok',
+    service: 'design-agent',
+    version: deps.version,
+    overall: deps.overall,
+    ts: new Date().toISOString()
+  }));
+
+  // 核心接口：设计会话（SSE 流式进度）
+  app.post('/design/chat', async (request, reply) => {
+    const body = normalizeChatBody(request.body);
+    if (body === null) {
+      return reply.code(400).send({
+        error: { code: 'BAD_REQUEST', message: 'prompt 必填且不能为空（JSON body）' }
+      });
+    }
+
+    reply.hijack();
+    const raw = reply.raw;
+    raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    const send = (event: string, data: unknown): void => {
+      raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const result = await deps.orchestrator.runDesignSession(body.prompt, {
+        ...(body.session_id !== undefined ? { session_id: body.session_id } : {}),
+        ...(body.human_decision !== undefined ? { human_decision: body.human_decision } : {}),
+        ...(body.max_steps !== undefined ? { max_steps: body.max_steps } : {}),
+        on_event: (event) => send('progress', event)
+      });
+      send('result', {
+        session_id: result.session_id,
+        trace_id: result.trace_id,
+        status: result.status,
+        outcome: result.outcome,
+        steps_used: result.steps_used,
+        resumed: result.resumed,
+        final_checkpoint_id: result.final_checkpoint_id,
+        generated_profile: result.ctx.generated_profile,
+        validation_errors: result.ctx.validation_errors
+      });
+      send('done', '[DONE]');
+      raw.end();
+    } catch (err) {
+      send('error', {
+        code: 'SESSION_FAILED',
+        message: err instanceof Error ? err.message : String(err)
+      });
+      raw.end();
+    }
+  });
+
+  return app;
+}
+
+/** 读取 package.json version（health 使用，避免硬编码漂移） */
+function packageVersion(rootDir: string): string {
+  const raw = readPackageJson(rootDir);
+  if (isRecord(raw) && typeof raw.version === 'string') {
+    return raw.version;
+  }
+  return '0.0.0';
+}
+
+/** 启动 API Server（listen 完成后返回 app 与访问 URL） */
+export async function startServe(options: {
+  readonly runtime: AssembledRuntime;
+  readonly overall: PhaseStatus;
+  readonly host: string;
+  readonly port: number;
+}): Promise<{ readonly app: FastifyInstance; readonly url: string }> {
+  const app = buildApiServer({
+    orchestrator: options.runtime.orchestrator,
+    version: packageVersion(options.runtime.rootDir),
+    overall: options.overall
+  });
+  await app.listen({ host: options.host, port: options.port });
+  const address = app.server.address();
+  const url =
+    address !== null && typeof address === 'object'
+      ? `http://${options.host}:${address.port}`
+      : `http://${options.host}:${options.port}`;
+  return { app, url };
+}
+
+/** 直接执行入口：npm run bootstrap / node dist/bootstrap.js（--serve 启动 API Server） */
 async function main(): Promise<void> {
   const rootDir = resolveRootDir(undefined);
   const envPath = path.join(rootDir, '.env');
@@ -486,13 +663,28 @@ async function main(): Promise<void> {
   }
   const logger = createLogger({ scope: 'bootstrap', trace_id: generateTraceId() });
   try {
+    // CLI/环境解析须在 dotenv 加载之后（--serve / --host / PORT 支持来自 .env）
+    const cli = parseCliArgs();
     const report = await runBootstrap({ rootDir, logger });
     logger.info('AKO Design Agent 引导完成', report);
     if (report.overall === 'blocked' || report.overall === 'failed') {
       process.exitCode = 1;
-    } else {
-      process.exitCode = 0;
+      return;
     }
+    if (cli.serve) {
+      // 引导已装配一次 runtime；serve 需要 orchestrator 等完整装配体
+      const runtime = await assembleRuntime({ rootDir, logger });
+      const { url } = await startServe({
+        runtime,
+        overall: report.overall,
+        host: cli.host,
+        port: cli.port
+      });
+      console.log(`🖥️  Designer Agent API Server running on ${url}`);
+      logger.info('Designer Agent API Server 已启动', { url });
+      return; // server 常驻：Fastify 句柄保活事件循环
+    }
+    process.exitCode = 0;
   } catch (err) {
     logger.error('引导失败', err instanceof Error ? err : new Error(String(err)));
     process.exitCode = 1;
