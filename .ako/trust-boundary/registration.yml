@@ -1,0 +1,15 @@
+agent_id: "AKO_design_agent"
+version: "1.0.0"
+civilization_type: "创新�?
+capabilities:
+  - name: design_agent_architecture
+    criticality: general
+    input_schema: "schemas/requirement_v1.json"
+    output_schema: "schemas/profile_v1.json"
+allowed_callers: []   # 独立工具，无需白名单；保留字段
+data_access_level: "INTERNAL"
+consistency_requirement: "read_your_writes"
+resource_quota:
+  max_tokens_per_call: 8000
+  timeout_seconds: 60
+  retry_policy: "exponential_backoff"

@@ -1,0 +1,10 @@
+backends:
+  - name: v4-pro
+    model: deepseek-v4-pro
+    endpoint: https://api.deepseek.com/v1
+  - name: v3-small
+    model: deepseek-v3-small
+    endpoint: https://api.deepseek.com/v1
+routing:
+  simple_pattern: v3-small
+  complex_design: v4-pro

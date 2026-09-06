@@ -1,0 +1,13 @@
+runtime:
+  max_steps: 20
+  tool_call_limit: 30
+  timeout: 60
+  session_timeout_ms: 60000   # 会话墙钟熔断（时间熔断，白皮书 §10.1）
+llm:
+  model: deepseek-v4-pro
+  temperature: 0.3
+  ttft_timeout_ms: 30000      # 单次调用 TTFT/时延上限
+memory:
+  short_term: true
+  long_term: true
+  episodic: true

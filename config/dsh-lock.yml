@@ -1,0 +1,5 @@
+locked_versions:
+  "@deepseek-ai/cordis": "0.1.3-alpha.1"
+  "@deepseek-ai/dsh-agent": "0.1.3-alpha.1"
+  "@deepseek-ai/dsh-llm": "0.1.3-alpha.1"
+fallback_mode: false

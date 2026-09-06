@@ -1,0 +1,73 @@
+# AKO Compliance 合规门禁
+# 触发：push 到 main/master 或任意 PR；失败即阻断合入。
+# 门禁维度：类型检查 → 单测/集成/合规测试(覆盖率) → 构建 → 引导冒烟 → 密钥泄露扫描 → 合规产物检查
+
+name: AKO Compliance
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ako-compliance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compliance:
+    name: 合规门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查（tsc --noEmit）
+        run: npm run typecheck
+
+      - name: 测试（unit/integration/compliance + 覆盖率阈值）
+        run: npm test -- --ci --coverage
+
+      - name: 构建（tsc 产物）
+        run: npm run build
+
+      - name: Bootstrap 引导冒烟
+        # 无 DSH 运行时 / 无 API Key 时应以 degraded 状态正常退出(0)
+        run: node dist/bootstrap.js
+        env:
+          DEEPSEEK_API_KEY: ""
+
+      - name: 硬编码密钥扫描（src/config/tests/.ako 不得出现 sk-）
+        run: |
+          if grep -rnE "sk-[A-Za-z0-9]{16,}" src/ config/ tests/ .ako/ 2>/dev/null; then
+            echo "::error::检测到疑似硬编码 API Key，请迁移至 .env（已被 gitignore）"
+            exit 1
+          fi
+          echo "密钥扫描通过：未发现硬编码凭据"
+
+      - name: AKO 合规产物完整性
+        run: |
+          test -f .ako/compliance-manifest.yml
+          test -f .ako/trust-boundary/registration.yml
+          test -d tests/compliance
+          echo "合规产物完整"
+
+      - name: 上传覆盖率报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore

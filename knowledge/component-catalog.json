@@ -1,0 +1,8 @@
+{
+  "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-web-app",
+    "custom/code-review-tools"
+  ],
+  "tools": ["git-tool", "linter-tool", "search-tool"]
+}

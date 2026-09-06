@@ -1,0 +1,80 @@
+# AKO 合规清单（v1.0.1 + Sprint 3 收官）
+# 变更记录：
+#   - v1.0.1 诚实降分：维度V 8/10 → 5/10；总分 83.84 → 80.84；总评 L2.5 → L2.0
+#   - Sprint 2（v1.0.1-S2）：统计版自学习权重自动更新 + Prompt/记忆/检查点/端到端编排上线；
+#     维度V 5/10 → 8/10，总分 80.84 → 83.84，总评 L2.0 → L2.5
+#   - Sprint 3（v1.0.1-S3 收官）：Cordis-4 归一化适配器（legacy openSession 标注 deprecated）、
+#     schema-validator + validator E2E（结构→沙箱→cost 记账经 orchestrator 打通）、
+#     MCP 工具桥接抽象类（FI-II-03 有据化）、时间熔断（time-circuit + TTFT 真机探针 gating）；
+#     维度分数保持（架构/鲁棒维度表述更新，无新增虚增），S 级差距另册 docs/v2.0-s-grade-gap-analysis.md
+#   - 诚实边界：语义向量检索/embedding 属 v1.5 差距；真实 LLM 在线调用属 S 级 v2.0
+agent_id: "AKO_design_agent"
+agent_name: "Agent Architecture Designer"
+target_level: "A"
+civilization_type: "创新型"
+
+# 维度I 法制合规（全部二元通过）
+dimension_I:
+  FI-I-01: "通过 - 全部 Markdown 强制 YAML Frontmatter"
+  FI-I-02: "通过 - 仅使用 6 个白名单标签"
+  FI-I-03: "通过 - 命名符合 AKO_{模块}_{描述}_vX.Y.Z.md"
+  FI-I-04: "通过 - 白皮书已生成（含信任边界草案）"
+  FI-I-05: "通过 - P0 反向提问记录已归档"
+  FI-I-06: "通过 - API Key 通过 .env 加载，CI 反硬编码扫描"
+  FI-I-07: "通过 - 工单 WO-HAI-20260906-001"
+  FI-I-08: "通过 - 全部文档作者 AKO_studio"
+  得分: "30/30"
+
+# 维度II 架构完整
+dimension_II:
+  FI-II-01: "通过 - 显式状态机（agent-loop + 条件边，含 Critic 重试回路）"
+  FI-II-02: "通过 - 模块边界清晰，接口隔离（interfaces 无 any）"
+  FI-II-03: "通过 - 内部接口 + Cordis-4 归一化适配器（legacy openSession 标注 deprecated）+ MCP 工具桥接抽象类"
+  FI-II-04: "通过 - 三级记忆体系"
+  FI-II-05: "通过 - 每个节点有 Fallback（含版本守护/成本熔断/ReAct 回退）"
+  FI-II-06: "通过 - Checkpoint 可恢复（DesignContext.checkpoint）"
+  FI-II-07: "通过 - 配置外部化（config/*.yml）"
+  FI-II-08: "通过 - 结构化日志 + trace_id"
+  FI-II-09: "通过 - read_your_writes 声明"
+  得分: "21.25/25"
+
+# 维度III 技术鲁棒
+dimension_III:
+  FI-III-01: "通过 - Routing 动态编排"
+  FI-III-02: "通过 - 独立评审模块（Critic-Executor）"
+  FI-III-03: "通过 - 工具 typed function + ToolBridge（list/call、权限分层）"
+  FI-III-04: "通过 - 四层安全防护（SecurityScanner 分层防御）"
+  FI-III-05: "通过 - 20步/30次/60s + 成本熔断 + 时间熔断（time-circuit：会话墙钟 + TTFT 上限）"
+  FI-III-06: "通过 - 配置生成幂等（Patch 整行替换）"
+  FI-III-07: "通过 - 复杂设计支持 interrupt（人工确认）"
+  FI-III-08: "N/A - 不涉及知识问答"
+  FI-III-09: "通过 - 中间输出 JSON + Schema"
+  得分: "21.25/25"
+
+# 维度IV 集群协同
+dimension_IV:
+  FI-IV-01: "N/A - 不接入 Hub"
+  FI-IV-02: "N/A - 使用 Markdown 工单"
+  FI-IV-03: "N/A - 单 Agent 运行"
+  FI-IV-04: "通过 - 模型分级路由 + Token 记账 + 成本熔断"
+  FI-IV-05: "N/A - 不接入 AKO 监控"
+  FI-IV-06: "通过 - 信任边界注册完整"
+  得分: "3.34/10"
+
+# 维度V 文明进化（v1.0.1-S2 智能增强：FI-V-01 统计版有据化）
+dimension_V:
+  FI-V-01: "通过 - 统计版权重自动更新（模式命中×成败，有界0.5-2.0乘性，pattern-weight 持久化 + matcher 消费）；语义向量检索留待 v1.5"
+  FI-V-02: "通过 - Validator 反馈闭环（Critic-Executor + runValidationRound 重试回路 + runDesignSession 端到端编排）"
+  FI-V-03: "通过 - SemVer + ChangeSet"
+  FI-V-04: "通过 - 会话自动沉淀案例（case-store episodic JSON + memory episodic + critic onCaseSink）"
+  FI-V-05: "通过 - 优先级队列"
+  得分: "8/10"             # ✅ Sprint 2 从 5 上调至 8（FI-V-01 统计版通过，向量检索另记 v1.5 差距）
+
+总分: "83.84/100"          # ✅ Sprint 2 从 80.84 回拨 3 分
+总评L级: "L2.5"            # ✅ Sprint 2 从 L2.0 上调
+认证等级: "A（诚实版，v1.0.1-Sprint3 收官）"
+
+差距分析:
+  - "v1.5 差距：语义向量检索/embedding（FI-V-01 仅为统计版权重）；离线评测集（金种子）"
+  - "真实 LLM 在线调用未接入：仅提供 PromptAssembler + ProfileGenerator seam；TTFT 真机压测需受控网络/凭据环境（探针 gating + docs/time-circuit-validation.md 待回填）"
+  - "S 级（v2.0）差距矩阵与迁移路线：docs/v2.0-s-grade-gap-analysis.md（Actor-Critic 完整版、约束求解器、向量库、金种子评测、OpenTelemetry、真实 MCP SDK）"

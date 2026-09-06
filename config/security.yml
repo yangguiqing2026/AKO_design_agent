@@ -1,0 +1,6 @@
+sandbox:
+  enabled: true
+  temp_dir: "./sandbox/simulate"
+  allowed_syscalls: ["read", "write"]
+  forbidden_syscalls: ["exec", "spawn", "fs.writeFile"]
+api_key_source: ".env"

@@ -1,0 +1,9 @@
+hard_limits:
+  per_session_max_usd: 5.00
+  per_month_budget_usd: 500.00
+  alert_threshold_percent: 80
+  hard_break_percent: 100
+token_cost:
+  cached_input: 0.022   # 每百万token
+  uncached_input: 0.044
+  output: 0.088
