@@ -21,11 +21,7 @@ import type { DshAdapter } from './core/dsh-adapter';
 import type { Logger } from './core/logger';
 
 import { createLogger, generateTraceId } from './core/logger';
-import {
-  VersionGuardian,
-  parseVersionGuardConfig,
-  readDeclaredVersions
-} from './core/version-guardian';
+import { VersionGuardian } from './core/version-guardian';
 import { SecurityScanner as SecurityScannerImpl } from './modules/validator/security-scanner';
 import { CostCircuit as CostCircuitImpl, parseBudgetConfig } from './modules/validator/cost-circuit';
 import {
@@ -198,13 +194,13 @@ export async function assembleRuntime(options: BootstrapOptions = {}): Promise<A
 
   const budget = parseBudgetConfig(loadYamlFile(path.join(configDir, 'cost-budget.yml')));
   const securityConfig = parseSecurityConfig(loadYamlFile(path.join(configDir, 'security.yml')));
-  const lockConfig = parseVersionGuardConfig(loadYamlFile(path.join(configDir, 'dsh-lock.yml')));
+  const lockConfig = VersionGuardian.parseConfig(loadYamlFile(path.join(configDir, 'dsh-lock.yml')));
 
   // Sprint 2：解析 default.yml / llm.backends.yml（供动态 Prompt 与编排使用）
   const runtimeSettings = parseRuntimeSettings(loadYamlFile(path.join(configDir, 'default.yml')));
   const llmBackends = parseLlmBackends(loadYamlFile(path.join(configDir, 'llm.backends.yml')));
 
-  const declared = readDeclaredVersions(readPackageJson(rootDir));
+  const declared = VersionGuardian.readDeclaredVersions(readPackageJson(rootDir));
   const versionGuardian = new VersionGuardian(lockConfig, declared);
   const versionAudit = versionGuardian.audit();
 

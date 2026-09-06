@@ -118,6 +118,19 @@ export class VersionGuardian {
   private readonly declared: Readonly<Record<string, string | undefined>>;
 
   /**
+   * 解析 dsh-lock 配置（静态入口；委托模块级 parseVersionGuardConfig）。
+   * 供组合根以 “VersionGuardian 类” 统一使用配置解析与实例化。
+   */
+  static parseConfig(raw: unknown): VersionGuardConfig {
+    return parseVersionGuardConfig(raw);
+  }
+
+  /** 从 package.json 原始内容（unknown）提取声明版本表（静态入口；委托 readDeclaredVersions） */
+  static readDeclaredVersions(packageJsonRaw: unknown): Record<string, string> {
+    return readDeclaredVersions(packageJsonRaw);
+  }
+
+  /**
    * @param config 锁定配置（locked_versions 为被锁包名 → 版本约束）
    * @param declared 当前运行环境声明版本表（package 名 → 版本号）
    */

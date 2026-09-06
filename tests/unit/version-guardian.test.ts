@@ -156,3 +156,16 @@ describe('readDeclaredVersions', () => {
     expect(readDeclaredVersions('x')).toEqual({});
   });
 });
+
+describe('VersionGuardian 静态入口（Sprint 3 组合根统一走类）', () => {
+  it('parseConfig 与模块级 parseVersionGuardConfig 等价', () => {
+    const raw = { locked_versions: { a: '1.0.0' }, pin_strategy: 'minor_lock' };
+    expect(VersionGuardian.parseConfig(raw)).toEqual(parseVersionGuardConfig(raw));
+    expect(() => VersionGuardian.parseConfig({})).toThrow(VersionGuardConfigError);
+  });
+
+  it('readDeclaredVersions 静态方法与模块函数等价', () => {
+    const raw = { dependencies: { a: '1.0.0' } };
+    expect(VersionGuardian.readDeclaredVersions(raw)).toEqual(readDeclaredVersions(raw));
+  });
+});
